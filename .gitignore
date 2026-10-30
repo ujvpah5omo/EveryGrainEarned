@@ -1,0 +1,12 @@
+# Local server deployment files
+/deploy/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Local editor and operating-system files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

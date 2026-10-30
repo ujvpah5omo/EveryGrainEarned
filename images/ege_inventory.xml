@@ -1,0 +1,8 @@
+<Atlas>
+    <Texture filename="ege_inventory.tex"/>
+    <Elements>
+        <Element name="ege_cloth.tex" u1="0.59375" u2="0.625" v1="0.84375" v2="0.875"/>
+        <Element name="ege_sprinkler.tex" u1="0.46875" u2="0.5" v1="0.40625" v2="0.4375"/>
+        <Element name="ege_sandbag.tex" u1="0.84375" u2="0.875" v1="0.46875" v2="0.5"/>
+    </Elements>
+</Atlas>
