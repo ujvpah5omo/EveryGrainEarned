@@ -1,8 +1,9 @@
 -- A separate networked ground overlay preserves the underlying farmland.
-local assets = {Asset("ANIM","anim/ege_terrain_ice.zip"),Asset("ANIM","anim/farm_soil_moisture.zip"),Asset("ANIM","anim/farm_soil_moisture_flood.zip"),
+local assets = {
+    Asset("ANIM","anim/ege_terrain_ice.zip"),
+    Asset("ANIM","anim/ege_water_sheet.zip"),
     Asset("ANIM","anim/ia_wave_shimmer_flood.zip"),
-    Asset("SHADER","shaders/farm_soil_moisture_flood.ksh")}
-local SHADER = resolvefilepath("shaders/farm_soil_moisture_flood.ksh")
+}
 local function AddRipples(inst)
     if inst.ripples then return end
     inst.ripples={}
@@ -28,6 +29,13 @@ local function AddRipples(inst)
         inst.ripples[#inst.ripples+1]=fx
     end
 end
+-- Keep the soil visible through every depth; shallow water has little tint.
+local water_colours = {
+    {0.32,0.28,0.21,0.14},
+    {0.23,0.43,0.47,0.25},
+    {0.16,0.34,0.48,0.36},
+    {0.10,0.23,0.40,0.48},
+}
 local function UpdateDepth(inst)
     local depth=math.max(1,inst._depth:value())
     local frozen=inst._frozen:value()
@@ -45,9 +53,8 @@ local function UpdateDepth(inst)
         inst.ice=ice
     end
     if inst.ice then if frozen then inst.ice:Show() else inst.ice:Hide() end end
-    if frozen then inst.AnimState:Hide("puddle_dry") else inst.AnimState:Show("puddle_dry") end
-    inst.AnimState:SetMultColour(0.75,0.9,1,frozen and 0 or 0.65+depth*0.1)
-    inst.AnimState:SetAddColour(0,frozen and 0 or 0.035,frozen and 0 or 0.1,0)
+    local colour=water_colours[depth]
+    inst.AnimState:SetMultColour(colour[1],colour[2],colour[3],frozen and 0 or colour[4])
     for i,fx in ipairs(inst.ripples or {}) do
         if not frozen and i<=depth+1 then fx:Show() else fx:Hide() end
     end
@@ -60,23 +67,15 @@ local function fn()
     inst:AddTag("slipperyfeettarget")
     inst:AddTag("FX")
     inst:AddTag("NOCLICK")
-    inst.AnimState:SetBank("farm_soil_moisture")
-    inst.AnimState:SetBuild("farm_soil_moisture_flood")
-    inst.AnimState:SetPercent("anim",1)
+    inst.AnimState:SetBank("ege_terrain")
+    inst.AnimState:SetBuild("ege_water_sheet")
+    inst.AnimState:PlayAnimation("idle",true)
+    inst.AnimState:SetScale(1.2,1.2)
     inst.AnimState:SetOrientation(ANIM_ORIENTATION.OnGround)
-    -- Draw above the vanilla soil-moisture overlay, which otherwise covers it.
     inst.AnimState:SetLayer(LAYER_BACKGROUND)
     inst.AnimState:SetSortOrder(3)
     inst.AnimState:SetFinalOffset(1)
-    inst.AnimState:SetDefaultEffectHandle(SHADER)
-    -- IA's bits MASK OUT flooded quadrants in the normal soil overlay.
-    -- This separate water overlay must keep every quadrant visible: mask zero.
-    local function UpdatePosition()
-        local x,y,z=inst.Transform:GetWorldPosition()
-        inst.AnimState:SetFloatParams(x,0,z)
-    end
-    inst:DoTaskInTime(0,UpdatePosition)
-    inst:ListenForEvent("entitywake",UpdatePosition)
+    inst.AnimState:SetMultColour(0,0,0,0)
     inst._frozen=net_bool(inst.GUID,"ege_flood.frozen","depthdirty")
     inst._depth=net_tinybyte(inst.GUID,"ege_flood.depth","depthdirty")
     inst._depth:set(1)
@@ -104,7 +103,7 @@ local function fn()
         if not TheNet:IsDedicated() then UpdateDepth(entity) end
     end
     inst.SetWaterDepth=function(entity,water)
-        local depth=water>=240 and 3 or water>=170 and 2 or 1
+        local depth=water>=240 and 4 or water>=170 and 3 or water>=100 and 2 or 1
         if entity._depth:value()~=depth then
             entity._depth:set(depth)
             if not TheNet:IsDedicated() then UpdateDepth(entity) end

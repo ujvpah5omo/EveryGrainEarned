@@ -1,4 +1,6 @@
+local L = require("ege_strings")
 local R = require("ege_rules")
+local RANDOM_DISEASE_CHANCE = 0.02
 local EgeCrop = Class(function(self, inst)
     self.inst = inst
     self.soak, self.temperature_dose, self.sicktime = 0,0,0
@@ -22,11 +24,39 @@ local EgeCrop = Class(function(self, inst)
     end
     local grow = inst.components.growable
     if grow then
-        local resume, start = grow.Resume, grow.StartGrowing
+        grow.loopstages = false
+        local resume, start, setstage, growth = grow.Resume, grow.StartGrowing, grow.SetStage, grow.DoGrowth
+        if growth then
+            grow.DoGrowth = function(component, ...)
+                if (component.targettime ~= nil or component.pausedremaining ~= nil)
+                    and self:ShouldSkipFruit(component:GetNextStage()) then
+                    self:Rot("rot_season")
+                    return true
+                end
+                return growth(component, ...)
+            end
+        end
+        grow.SetStage = function(component, stage, ...)
+            if self.disease_checks_ready and self:ShouldSkipFruit(stage) then
+                self:Rot("rot_season")
+                return
+            end
+            local previous = component.stage
+            local result = setstage(component, stage, ...)
+            if self.disease_checks_ready and component.stage ~= previous then
+                self:CheckStageDisease()
+            end
+            return result
+        end
         grow.Resume = function(component, ...)
             if not self.blocked and not self.ruined then return resume(component, ...) end
         end
         grow.StartGrowing = function(component, ...)
+            local stage = component:GetCurrentStageData()
+            if stage and stage.name == "rotten" then
+                component:StopGrowing()
+                return
+            end
             local result = start(component, ...)
             if self.blocked or self.ruined then component:Pause() end
             return result
@@ -63,7 +93,7 @@ local EgeCrop = Class(function(self, inst)
             local status = self:Description()
             local total=self.sea_supply+self.fresh_supply
             if total>0 then
-                local water=string.format("本轮海水供水占比：%.1f%%",100*self.sea_supply/total)
+                local water=string.format(L("seawater_share"),100*self.sea_supply/total)
                 status=status and status.."\n"..water or water
             end
             local fields=TheWorld.components.ege_fields
@@ -71,8 +101,8 @@ local EgeCrop = Class(function(self, inst)
             local tile=fields and fields:AtPoint(x,z)
             if tile and TUNING.EGE.salinity~=false and (tile.salt or 0)>0 then
                 local level=R.SaltLevel(tile.salt)
-                local soil=string.format("土壤盐分：%.0f/300（%s）",tile.salt,({[0]="正常",[1]="轻度",[2]="中度",[3]="重度"})[level])
-                if level==3 then soil=soil..string.format("，重度累积 %.1f/3 天",(tile.salt_time or 0)/TUNING.TOTAL_DAY_TIME) end
+                local soil=string.format(L("soil_salt"),tile.salt,({[0]=L("salt_normal"),[1]=L("salt_light"),[2]=L("salt_medium"),[3]=L("salt_severe")})[level])
+                if level==3 then soil=soil..string.format(L("salt_progress"),(tile.salt_time or 0)/TUNING.TOTAL_DAY_TIME) end
                 status=status and status.."\n"..soil or soil
             end
             local base = old and old(entity,viewer) or nil
@@ -103,6 +133,11 @@ function EgeCrop:IsSalty()
 end
 function EgeCrop:IsInSeason()
     return self.inst.plant_def.good_seasons[TheWorld.state.season] == true
+end
+function EgeCrop:ShouldSkipFruit(stage)
+    local grow = self.inst.components.growable
+    local next_stage = grow and grow.stages[stage]
+    return TUNING.EGE.season_gate and next_stage and next_stage.name == "full" and not self:IsInSeason()
 end
 function EgeCrop:IsFlooded()
     local fields = TheWorld.components.ege_fields
@@ -141,6 +176,23 @@ function EgeCrop:AttachDisease()
         entity.AnimState:SetMultColour(0.65,0.75,0.45,1)
     end)
 end
+function EgeCrop:RollDisease()
+    local disease = self.inst.components.diseaseable
+    if TUNING.EGE.disease and disease and not disease:IsDiseased()
+        and not disease:IsBecomingDiseased() and math.random() < RANDOM_DISEASE_CHANCE then
+        disease:Disease()
+        disease:RestartNearbySpread()
+    end
+end
+function EgeCrop:CheckStageDisease()
+    local grow = self.inst.components.growable
+    if not self:IsGrowingStage() then
+        self.last_disease_stage = nil
+    elseif grow.stage ~= self.last_disease_stage then
+        self.last_disease_stage = grow.stage
+        self:RollDisease()
+    end
+end
 function EgeCrop:Cure()
     if self.ruined or self:IsFlooded() then return false end
     local disease = self.inst.components.diseaseable
@@ -177,6 +229,13 @@ function EgeCrop:Tick(dt)
     local inst, cfg = self.inst, TUNING.EGE
     local growing = self:IsGrowingStage()
     if growing then self:SampleWater() end
+    self.disease_checks_ready = true
+    self:CheckStageDisease()
+    local day = TheWorld.state.cycles
+    if day ~= nil and day ~= self.last_disease_day then
+        self.last_disease_day = day
+        if growing then self:RollDisease() end
+    end
     local x,y,z = inst.Transform:GetWorldPosition()
     local fields = TheWorld.components.ege_fields
     local tile = fields and fields:AtPoint(x,z)
@@ -185,7 +244,7 @@ function EgeCrop:Tick(dt)
     else self.soak = math.max(0,self.soak-dt) end
     if growing and cfg.temperature then
         self.temperature_dose = R.TemperatureDose(self.temperature_dose,GetTemperatureAtXZ(x,z),self.profile,dt*cfg.severity)
-        if self.temperature_dose >= TUNING.TOTAL_DAY_TIME then self:Rot("低温超过了这种作物的承受范围。"); return end
+        if self.temperature_dose >= TUNING.TOTAL_DAY_TIME then self:Rot("rot_cold"); return end
     else self.temperature_dose=0 end
     local disease = inst.components.diseaseable
     if cfg.disease and disease and self.soak >= self.profile.soak_limit and not disease:IsDiseased() then
@@ -195,7 +254,7 @@ function EgeCrop:Tick(dt)
     local sick = disease and disease:IsDiseased()
     if sick then self.sicktime=self.sicktime+dt*cfg.severity end
     if (sick and self.sicktime >= TUNING.TOTAL_DAY_TIME*2) or self.soak >= self.profile.soak_limit*3 then
-        self:Rot("病害或长期浸泡让作物腐烂了。"); return
+        self:Rot("rot_disease"); return
     end
     self.blocked = sick or (growing and flooded) or false
     local grow = inst.components.growable
@@ -206,19 +265,19 @@ function EgeCrop:Tick(dt)
     end
 end
 function EgeCrop:Description()
-    if self.ruined then return self.reason or "这株作物已经腐烂，无法治疗。" end
+    if self.ruined then return L(self.reason or "rot_default") end
     local d = self.inst.components.diseaseable
     if d and d:IsDiseased() then
-        return self:IsFlooded() and "病株：请先用沙袋排水，再使用农药。" or "病株：可以使用农药治疗。"
+        return self:IsFlooded() and L("sick_flooded") or L("sick")
     end
-    if self:IsFlooded() then return "农田积水，正在流失肥力。" end
-    if self.temperature_dose > 0 then return "气温过低，持续下去会冻死。" end
-    if TUNING.EGE.season_gate and not self:IsInSeason() then return "当前不应季，无法长成巨大作物。" end
-    if self:IsSalty() then return "农田积盐过多，正在承受盐分压力。" end
+    if self:IsFlooded() then return L("crop_flooded") end
+    if self.temperature_dose > 0 then return L("crop_cold") end
+    if TUNING.EGE.season_gate and not self:IsInSeason() then return L("crop_season") end
+    if self:IsSalty() then return L("crop_salty") end
 end
 function EgeCrop:OnSave()
     self:SampleWater()
-    return {soak=self.soak,temperature_dose=self.temperature_dose,sicktime=self.sicktime,ruined=self.ruined,reason=self.reason,
+    return {last_disease_stage=self.last_disease_stage,last_disease_day=self.last_disease_day,soak=self.soak,temperature_dose=self.temperature_dose,sicktime=self.sicktime,ruined=self.ruined,reason=self.reason,
         sea_supply=self.sea_supply,fresh_supply=self.fresh_supply,water_key=self.water_key,
         sea_seen=self.sea_seen,fresh_seen=self.fresh_seen,water_finalized=self.water_finalized}
 end
@@ -229,6 +288,8 @@ function EgeCrop:OnLoad(data)
     self.water_key=data.water_key
     self.sea_seen,self.fresh_seen=tonumber(data.sea_seen),tonumber(data.fresh_seen)
     self.water_finalized=data.water_finalized==true
+    self.last_disease_stage=tonumber(data.last_disease_stage)
+    self.last_disease_day=tonumber(data.last_disease_day)
     self.soak=tonumber(data.soak) or 0
     self.temperature_dose=tonumber(data.temperature_dose) or 0
     self.sicktime=tonumber(data.sicktime) or 0

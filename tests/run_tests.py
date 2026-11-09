@@ -103,7 +103,7 @@ function FindEntity(inst,r,predicate,tags)
     end
 end
 function Entity(x,z,tags)
-    local e={x=x or 0,z=z or 0,tags={},components={},valid=true,AnimState={SetMultColour=function() end,SetAddColour=function() end},
+    local e={x=x or 0,z=z or 0,tags={},components={},valid=true,AnimState={SetMultColour=function() end,SetAddColour=function() end,SetPercent=function() end,SetScale=function() end},
         entity={SetParent=function() end,AddFollower=function() return {FollowSymbol=function() end} end}}
     e.GUID=#ENTITIES+1
     for _,tag in ipairs(tags or {}) do e.tags[tag]=true end
@@ -166,6 +166,7 @@ function GetTemperatureAtXZ() return TEMPERATURE end
 function DoDeltaMoistureToEntity(e,amount) e.wetdelta=(e.wetdelta or 0)+amount end
 function Vector3(x,y,z) return {x=x,y=y,z=z} end
 function SpawnPrefab(name)
+    if name=="ege_ruined_field" then return Entity(0,0,{"ege_ruined_field"}) end
     local e=Entity()
     e.prefab=name
     function e:SetLoops() end
@@ -218,7 +219,7 @@ local Terrain=require("ege_terrain_visual")
 local stage_symbol=nil
 local decal={ege_build="ege_terrain_dry",AnimState={OverrideSymbol=function(_,symbol,build,frame) stage_symbol=frame end},Transform={SetScale=function(_,x,y,z) assert(x==1.2 and x==y and y==z) end}}
 local cracks={_level={value=function() return 1 end}}
-Terrain.Fit(cracks,decal,"test")
+Terrain.Fit(cracks,decal,1.2)
 assert(stage_symbol==nil,"terrain must not inherit directional crack animation symbols")
 local ruined_source=assert(io.open(ROOT.."/scripts/prefabs/ege_ruined_field.lua")):read("*a")
 assert(ruined_source:find('cause=="dry" and 3',1,true),"dry terrain must have a nonzero replicated cause")
@@ -330,6 +331,24 @@ assert(a.components.farmplantstress:CalcFinalStressState()==FARM_PLANT_STRESS.LO
 TUNING.EGE.season_gate=false
 assert(a.components.farmplantstress:CalcFinalStressState()==FARM_PLANT_STRESS.NONE)
 print("PASS: seasonal giant gate and disabled setting")
+local offseason=Crop(4002,4002,{spring=true})
+local offgrow=offseason.components.growable
+offseason.components.ege_crop.disease_checks_ready=true
+TUNING.EGE.season_gate=true
+offgrow:SetStage(3)
+assert(offgrow.stage==4 and offgrow.paused and not offgrow.loopstages)
+assert(offseason.components.ege_crop.reason=="rot_season")
+offgrow:StartGrowing()
+assert(offgrow.paused,"withered crops must not restart")
+local unrestricted=Crop(4006,4002,{spring=true})
+unrestricted.components.ege_crop.disease_checks_ready=true
+TUNING.EGE.season_gate=false
+unrestricted.components.growable:SetStage(3)
+assert(unrestricted.components.growable.stage==3,"disabled seasonal harvest must permit fruit")
+offseason:Remove()
+unrestricted:Remove()
+print("PASS: out-of-season maturity skips fruit and withered crops do not restart")
+
 
 TEMPERATURE=-30
 a.components.ege_crop:Tick(480)
@@ -345,7 +364,7 @@ fields.tiles["0:0"].water=0
 fields:Tick(480)
 assert(TheWorld.Map:GetTile(0,0)==WORLD_TILES.FARMING_SOIL and fields.tiles["0:0"].dry==0)
 fields:Tick(480)
-assert(TheWorld.Map:GetTile(0,0)==WORLD_TILES.DIRT)
+assert(TheWorld.Map:GetTile(0,0)==WORLD_TILES.FARMING_SOIL)
 assert(fields.tiles["0:0"]==nil)
 assert(b.components.ege_crop.ruined)
 print("PASS: fertile dry summer soil is destroyed without requiring depleted nutrients")
@@ -356,8 +375,9 @@ fields.tiles["1:0"].flood=1440
 TheWorld.state.issummer=false
 TheWorld.components.farming_manager.wet=true
 fields:Tick(5)
-assert(TheWorld.Map:GetTile(1,0)==WORLD_TILES.DIRT)
+assert(TheWorld.Map:GetTile(1,0)==WORLD_TILES.FARMING_SOIL)
 print("PASS: persistent flooding destroys farmland independently of drought")
+for _,ruin in ipairs(TheSim:FindEntities(4,0,2,6,{"ege_ruined_field"})) do ruin:Remove() end
 ''')
 lua.execute(r'''
 package.preload.prefabutil=function() return {} end
@@ -429,7 +449,7 @@ function CreateEntity()
     e.entity={AddTransform=function() end,AddAnimState=function() end,AddSoundEmitter=function() end,
         AddNetwork=function() end,SetPristine=function() end,SetParent=function() end,
         AddFollower=function() return {FollowSymbol=function() end} end}
-    e.AnimState={SetBank=function(_,v) e.bank=v end,SetBuild=function(_,v) e.build=v end,
+    e.AnimState={SetPercent=function() end,SetScale=function() end,SetBank=function(_,v) e.bank=v end,SetBuild=function(_,v) e.build=v end,
         PlayAnimation=function(_,v) e.anim=v end,OverrideSymbol=function(_,symbol,build,image) e.meter=image end,
         Hide=function() end,Show=function() end,SetMultColour=function(_,r,g,b,a) e.colour={r,g,b,a} end,SetAddColour=function() end,
         PushAnimation=function() end,SetTime=function() end,Hide=function() end,Show=function() end,SetOrientation=function() end,SetLayer=function() end,SetSortOrder=function() end}
@@ -647,10 +667,14 @@ assert(target.components.diseaseable:IsDiseased())
 fields:AtPoint(2,2).water=0
 mist:Treat()
 assert(not target.components.diseaseable:IsDiseased())
-local distant=Crop(7,2)
+local corner=Crop(6,6)
+corner.components.diseaseable:Disease()
+mist:Treat()
+assert(not corner.components.diseaseable:IsDiseased(),"medicine must cover a 2x2 field corner")
+local distant=Crop(8,2)
 distant.components.diseaseable:Disease()
 mist:Treat()
-assert(distant.components.diseaseable:IsDiseased(),"medicine must not cure outside radius 4")
+assert(distant.components.diseaseable:IsDiseased(),"medicine must not cure outside the 2x2 field radius")
 assert(mist.components.timer.name=="disperse" and mist.components.timer.time>0)
 bottle.components.complexprojectile.onlaunchfn(bottle)
 assert(bottle:HasTag("NOCLICK") and bottle.anim=="spin_gelblob_loop")
@@ -822,15 +846,15 @@ local R=require("ege_rules")
 assert(R.Salt(100,0,0,100,200)==50,"actual sandbag drainage must remove salt")
 assert(R.Salt(100,0,20,0)==100 and R.Salt(100,0,20,20,200)==90)
 assert(R.Salt(299,50,0,0)==300)
-assert(math.abs(R.Salt(50,0,0,1,1)-49.5)<1e-8,"tiny puddles cannot remove all concentrated salt")
-assert(R.Salt(200,0,0,300,300)==50,"one full sandbag removes at most 150 salt")
+assert(math.abs(R.Salt(50,0,0,1,1)-49)<1e-8,"tiny puddles cannot remove all concentrated salt")
+assert(R.Salt(300,0,0,300,300)==0,"one full sandbag can carry 300 salt")
 assert(R.Salt(20,0,0,200,200)==0,"draining all sufficiently dilute surface water must remove all salt")
 assert(R.Salt(30,0,0,300,300)==0,"draining at exactly the concentration limit must clear salt")
 assert(math.abs(R.Salt(1,0,0,10,100)-.9)<1e-8,"dilute salt removal must use actual concentration")
-assert(math.abs(R.Salt(0,0.4*480*5,0,0)-96)<1e-9,"five days of seawater must accumulate 96 salt")
+assert(math.abs(R.Salt(0,0.4*480,0,0)-96)<1e-9,"one day of seawater must accumulate 96 salt")
 local seasonal_salt=0
 for cycle=1,3 do
- seasonal_salt=R.Salt(seasonal_salt,0.4*480*5,0,0)
+ seasonal_salt=R.Salt(seasonal_salt,0.4*480,0,0)
  assert(math.abs(seasonal_salt-96)<1e-9)
  seasonal_salt=R.Salt(seasonal_salt,0,0,1000,1000)
  assert(seasonal_salt==0)
@@ -843,7 +867,7 @@ TheWorld.components.ege_fields=f
 local manager=TheWorld.components.farming_manager
 local oldcrop=Crop(82,82)
 oldcrop.components.ege_crop:SampleWater()
-f:AddWater(82,82,500,"sea")
+f:AddWater(82,82,100,"sea")
 local tile=f:AtPoint(82,82)
 assert(tile.salt==50 and f:GetSaltLevel(82,82)==1)
 f:UpdateSaltVisual(tile)
@@ -876,11 +900,11 @@ local drain=Entity(82,82,{"ege_drain"})
 function drain:AbsorbWater(n) self.absorbed=(self.absorbed or 0)+n; return n end
 local before=tile.salt
 f:Tick(5)
-assert(math.abs(tile.salt-(before-math.min(before*6/(tile.water+6),3)))<1e-8,"drained salt must follow concentration and carrying capacity")
+assert(math.abs(tile.salt-(before-math.min(before*6/(tile.water+6),6)))<1e-8,"drained salt must follow concentration and carrying capacity")
 local before_second=tile.salt
 f:AddWater(82,82,20,"fresh")
 f:Tick(5)
-assert(math.abs(tile.salt-(before_second-math.min(before_second*6/(tile.water+6),3)))<1e-8,"additional water dilutes but drainage has limited salt capacity")
+assert(math.abs(tile.salt-(before_second-math.min(before_second*6/(tile.water+6),6)))<1e-8,"additional water dilutes but drainage has limited salt capacity")
 assert(tile.salt_time<15,"heavy-salt countdown should retreat after treatment")
 drain:Remove()
 local data=f:OnSave()
@@ -902,7 +926,7 @@ assert(tile.salt_time==1990 and f:GetSaltLevel(82,82)==0 and f.tiles["20:20"]==t
 TUNING.EGE.salinity=true
 tile.salt=200; tile.water=0; tile.flood=0; tile.salt_time=1435; tile.fresh_pending=0
 f:Tick(5)
-assert(TheWorld.Map:GetTile(20,20)==WORLD_TILES.DIRT and f.tiles["20:20"]==nil)
+assert(TheWorld.Map:GetTile(20,20)==WORLD_TILES.FARMING_SOIL and f.tiles["20:20"]==nil)
 assert(crop.components.ege_crop.ruined and not fx:IsValid())
 print("PASS: persistent soil salt, inherited soil pressure, sandbag-only salt removal, crystal levels, no stacked erosion, countdown recovery, legacy saves, and 3-day salt destruction")
 ''')
@@ -1050,14 +1074,3 @@ abag:Remove();bbag:Remove()
 manager.EGEGetSoilMoisture=getsoil;TUNING.EGE.sandbag_range=oldrange
 print("PASS: overlapping bags prioritize own field, drain full fields with one bag each, then assist neighbours")
 """)
-
-# The approved single-frame ice resources are the reference for this rollback.
-reference=Path(ROOT).parent/"rounded_edges_server_snapshot"/"anim"
-for kind in ("ice","dry","flood","salt"):
-    name="ege_terrain_"+kind+".zip"
-    assert (Path(ROOT)/"anim"/name).read_bytes()==(reference/name).read_bytes()
-print("PASS: all terrain resources exactly restore the approved single-frame version")
-
-for relative in ("scripts/ege_terrain_visual.lua","scripts/prefabs/ege_flood.lua"):
-    assert (Path(ROOT)/relative).read_bytes()==(Path(ROOT).parent/"rounded_edges_server_snapshot"/relative).read_bytes()
-print("PASS: both visual scripts exactly match the pre-rounded-seams snapshot")

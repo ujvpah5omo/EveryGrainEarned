@@ -1,3 +1,4 @@
+local L = require("ege_strings")
 -- Adapted from Island Adventures sandbag.lua; standalone DST compatibility.
 require "prefabutil"
 local HEALTH=200
@@ -303,9 +304,9 @@ local function fn()
         local remaining=math.ceil(CAPACITY-entity.ege_absorbed)
         local salt=entity.ege_salt_absorbed or 0
         local ratio=entity.ege_absorbed>0 and salt/entity.ege_absorbed or 0
-        local detail=string.format("已吸水：%.1f/%d；累计吸盐：%.2f。\n袋内平均盐水比：%.4f（每100水含%.2f盐）。",entity.ege_absorbed,CAPACITY,salt,ratio,ratio*100)
-        if entity.components.health:IsDead() then return "沙袋已损坏，无法吸水。\n"..detail end
-        if remaining<=0 then return "沙袋已经吸满；继续浸泡会损坏，可敲掉更换。\n"..detail end
+        local detail=string.format(L("bag_detail"),entity.ege_absorbed,CAPACITY,salt,ratio,ratio*100)
+        if entity.components.health:IsDead() then return L("bag_broken")..detail end
+        if remaining<=0 then return L("bag_full")..detail end
         return detail
 
     end

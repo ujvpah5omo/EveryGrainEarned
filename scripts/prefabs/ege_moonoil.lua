@@ -2,14 +2,31 @@
 -- Treatment delegates to ege_crop so stage/stress data is never rebuilt.
 local assets={
     Asset("ANIM","anim/bottle.zip"),Asset("ANIM","anim/swap_gelblobbottle.zip"),
-    Asset("ANIM","anim/sleepcloud.zip"),Asset("ANIM","anim/sporecloud_base.zip"),
+    Asset("ANIM","anim/reticuleaoe.zip"),Asset("ANIM","anim/sleepcloud.zip"),Asset("ANIM","anim/sporecloud_base.zip"),
     Asset("ATLAS","images/ege_moonoil.xml"),Asset("IMAGE","images/ege_moonoil.tex"),
 }
-local prefabs={"ege_moonoil_cloud","ege_moonoil_ground","messagebottle_break_fx","halloween_moonpuff"}
-local TREAT_RADIUS=4
--- The sleepcloud artwork accompanies vanilla's 3.5-unit cloud, not UM's
--- enlarged 9-unit treatment query. Scale the artwork from its native radius.
-local CLOUD_SCALE=TREAT_RADIUS/3.5
+local prefabs={"ege_moonoil_reticule","ege_moonoil_cloud","ege_moonoil_ground","messagebottle_break_fx","halloween_moonpuff"}
+local TREAT_RADIUS=4*math.sqrt(2)
+-- Keep the committed cloud size. The splash artwork extends past the
+-- treatment area, so it must not scale with the gameplay radius.
+local CLOUD_SCALE=4/3.5
+local function ReticuleFn()
+    local inst=CreateEntity()
+    inst.entity:AddTransform()
+    inst.entity:AddAnimState()
+    inst.AnimState:SetBank("reticuleaoe")
+    inst.AnimState:SetBuild("reticuleaoe")
+    inst.AnimState:PlayAnimation("idle",true)
+    inst.AnimState:SetOrientation(ANIM_ORIENTATION.OnGroundFixed)
+    inst.AnimState:SetLayer(LAYER_WORLD_BACKGROUND)
+    inst.AnimState:SetSortOrder(10)
+    local scale=1.5*TREAT_RADIUS/4
+    inst.AnimState:SetScale(scale,scale)
+    inst:AddTag("FX")
+    inst:AddTag("NOCLICK")
+    inst.persists=false
+    return inst
+end
 local function Blue(inst)
     if not inst.AnimState then return end
     inst.AnimState:SetMultColour(0.25,0.55,1,1)
@@ -49,9 +66,7 @@ local function Disperse(inst,data)
     inst:DoTaskInTime(3,inst.Remove)
 end
 local function groundfn()
-    local inst=NewFX("sporecloud_base","sporecloud_base_pre",false)
-    inst.AnimState:SetTime(12*FRAMES)
-    inst.AnimState:PushAnimation("sporecloud_base_idle",true)
+    local inst=NewFX("sporecloud_base","sporecloud_base_idle",true)
     inst.AnimState:SetOrientation(ANIM_ORIENTATION.OnGround)
     inst.AnimState:SetLayer(LAYER_BACKGROUND)
     inst.AnimState:SetSortOrder(3)
@@ -142,6 +157,8 @@ local function bottlefn()
     Blue(inst)
     inst:AddComponent("reticule")
     inst.components.reticule.targetfn=Target
+    inst.components.reticule.reticuleprefab="ege_moonoil_reticule"
+    inst.components.reticule.mouseenabled=true
     inst.components.reticule.ease=true
     inst.components.reticule.twinstickcheckscheme=true
     MakeInventoryFloatable(inst,"small",0.05,1)
@@ -172,4 +189,5 @@ local function bottlefn()
 end
 return Prefab("ege_moonoil",bottlefn,assets,prefabs),
     Prefab("ege_moonoil_cloud",cloudfn,assets,{"ege_moonoil_ground","halloween_moonpuff"}),
-    Prefab("ege_moonoil_ground",groundfn,assets)
+    Prefab("ege_moonoil_ground",groundfn,assets),
+    Prefab("ege_moonoil_reticule",ReticuleFn,assets)

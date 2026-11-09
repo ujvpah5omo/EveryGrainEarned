@@ -1,0 +1,24 @@
+[h1]Every Grain Earned[/h1]
+
+Give your farm in Don't Starve Together more to manage: water sources, salty soil and crop disease. Irrigate with sprinklers, drain with sandbags, and treat sick crops with pesticide.
+
+[h2]What happens to your farm[/h2]
+[list]
+[*]Water fills the soil before pooling on top. The transparent water surface shifts through four colors as it deepens.
+[*]Summer drought and prolonged flooding can ruin plots. Winter floodwater freezes, makes the ground slippery and kills crops.
+[*]Seawater leaves salt in the soil. Three levels of white patches show salt buildup. Severe salinity can ruin a plot.
+[*]Cracks warn of drought, flooding and salt damage. A ruined plot lies fallow for four days, then returns to its original ground.
+[*]Crops that reach maturity out of season wither without fruit. Withered crops do not regrow.
+[*]Growing crops have a 2% disease chance each day and on entering a growing stage. Prolonged flooding and infected neighbors can also spread disease.
+[/list]
+
+[h2]Tools for the job[/h2]
+[list]
+[*][b]Sprinkler[/b] draws from a nearby water source and prioritizes fresh water. Seawater works, but leaves salt behind.
+[*][b]Desalinating Sprinkler[/b] consumes Blue Gems for desalination time, or runs continuously with an Enlightened Shard. Fresh output can refill watering cans.
+[*][b]Drainage Sandbags[/b] drain their own tile first and carry dissolved salt out with the water. Add fresh water to a dry salty plot before draining it.
+[*][b]Pesticide[/b] releases a blue treatment mist. Drain affected plots first, then aim at the intersection of four farm tiles to cover a 2×2 area.
+[/list]
+
+[h2]Multiplayer and settings[/h2]
+The host and all players need the same mod version. Toggle flooding, drought, disease, cold damage, seasonal harvest and salinity separately. Severity and sandbag range are configurable. Supports English and Simplified Chinese.

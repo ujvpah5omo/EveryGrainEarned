@@ -22,9 +22,9 @@ end
 function R.SummerEvaporation(crop_rate,natural_rate)
     return math.max(natural_rate,0.4-crop_rate)
 end
--- Full-tile seawater irrigation adds about 96 salt in five default game days.
-R.SEA_SALT_RATE=0.1
-R.MAX_DRAIN_SALT_PER_WATER=0.5
+-- Full-tile seawater irrigation adds about 96 salt per default game day.
+R.SEA_SALT_RATE=0.5
+R.MAX_DRAIN_SALT_PER_WATER=1.0
 R.SALT_MAX=300
 R.SALT_LIGHT=50
 R.SALT_STRESS=120

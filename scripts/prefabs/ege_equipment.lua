@@ -1,3 +1,4 @@
+local L = require("ege_strings")
 require("prefabutil")
 local Water = require("ege_water")
 local assets={Asset("ANIM","anim/ege_magic_sprinkler.zip"),Asset("ANIM","anim/sprinkler.zip"),Asset("ANIM","anim/sprinkler_meter.zip"),
@@ -198,17 +199,17 @@ local function sprinklerfn(magic)
     inst:WatchWorldState("issnowcovered",UpdateSnow)
     Workable(inst,magic and {"gears","bluegem","bluegem","livinglog"} or {"gears","goldnugget","goldnugget","boards"})
     inst.components.inspectable.descriptionfn=function(entity)
-        if not Water.CanBuild(entity:GetPosition()) then return "附近20范围内没有可用水源。绿洲只在夏季供水。" end
+        if not Water.CanBuild(entity:GetPosition()) then return L("no_water") end
         local desal=entity.components.ege_desalinator
         if not desal then
-            return string.format("燃料：%.2f%%。抽取海水会使农田积盐。",entity.components.fueled:GetPercent()*100)
+            return string.format(L("fuel_plain"),entity.components.fueled:GetPercent()*100)
         end
-        local status=desal:HasShard() and "启迪碎片：持续淡化，不消耗。"
-            or string.format("蓝宝石淡化余时：%.0f秒（%s）。",math.ceil(desal.remaining),
-                not entity.components.machine:IsOn() and "已停机，暂停计时"
-                or entity.ege_water_source~="sea" and "淡水供水，暂停计时"
-                or "海水淡化中，每2秒扣除")
-        return string.format("燃料：%.2f%%。右键开关机器，打开容器可更换淡化材料。\n%s",entity.components.fueled:GetPercent()*100,status)
+        local status=desal:HasShard() and L("shard")
+            or string.format(L("gem_time"),math.ceil(desal.remaining),
+                not entity.components.machine:IsOn() and L("gem_off")
+                or entity.ege_water_source~="sea" and L("gem_fresh")
+                or L("gem_sea"))
+        return string.format(L("fuel_magic"),entity.components.fueled:GetPercent()*100,status)
     end
     inst.moisture_targets={}
     inst.pipes={}
@@ -270,7 +271,7 @@ local function sprinklerfn(magic)
         entity.SoundEmitter:PlaySound("everygrain_DLC003/common/crafted/sprinkler/working","ege_sprinkler_working")
         entity.AnimState:PlayAnimation("launch",true)
         entity.components.fueled:StartConsuming()
-        entity.components.watersource.available=true
+        entity.components.watersource.available=entity.ege_water_source~=nil and entity.ege_water_source~="sea"
         if not entity.water_spray then
             entity.water_spray=SpawnPrefab("ege_water_spray")
             local follower=entity.water_spray.entity:AddFollower()

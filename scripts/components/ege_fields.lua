@@ -20,9 +20,19 @@ local EgeFields = Class(function(self, inst)
     inst:DoPeriodicTask(STEP, function() self:Tick(STEP) end)
 end)
 function EgeFields:Key(tx,tz) return tx .. ":" .. tz end
+function EgeFields:IsRuined(tx,tz)
+    local map=self.inst.Map
+    local x,_,z=map:GetTileCenterPoint(tx,tz)
+    for _,ruin in ipairs(TheSim:FindEntities(x,0,z,3,{"ege_ruined_field"})) do
+        local rx,_,rz=ruin.Transform:GetWorldPosition()
+        local a,b=map:GetTileCoordsAtPoint(rx,0,rz)
+        if a==tx and b==tz then return true end
+    end
+    return false
+end
 function EgeFields:Register(tx,tz)
     local key = self:Key(tx,tz)
-    if self.inst.Map:GetTile(tx,tz) ~= WORLD_TILES.FARMING_SOIL then
+    if self.inst.Map:GetTile(tx,tz) ~= WORLD_TILES.FARMING_SOIL or self:IsRuined(tx,tz) then
         self.tiles[key] = nil
         for _,kind in ipairs({"cracks"}) do
             local k=key..kind
@@ -88,7 +98,7 @@ function EgeFields:UpdateDamageVisual(tile)
     local cause=salt>=flood and salt>=dry and "salt" or flood>=dry and "flood" or "dry"
     local progress={cracks=math.max(flood,dry,salt)}
     for kind,ratio in pairs(progress) do
-        local level=ratio>=0.75 and 3 or ratio>=0.4 and 2 or ratio>=0.1 and 1 or 0
+        local level=ratio>=0.4 and 2 or ratio>=0.1 and 1 or 0
         local k=key..kind
         local fx=self.damagefx[k]
         if level>0 and (not fx or not fx:IsValid()) then
@@ -122,13 +132,10 @@ function EgeFields:DestroyTile(tile)
     for _,ent in ipairs(map:GetEntitiesOnTileAtPoint(x,0,z)) do
         if ent:IsValid() then
             if ent:HasTag("farm_plant") and ent.components.ege_crop then
-                ent.components.ege_crop:Rot("农田已经毁坏。")
+                ent.components.ege_crop:Rot("rot_field")
             elseif ent:HasTag("soil") then ent:PushEvent("collapsesoil") end
         end
     end
-    -- Clear automatically, without passing through player tool/frozen-field guards.
-    if not require("ege_farmland").Clear(map,self.inst.components.undertile,x,z) then return end
-    self:Register(tile.tx,tile.tz)
     local cause=(tile.salt_time or 0)>=TUNING.TOTAL_DAY_TIME*3 and "salt"
         or tile.flood>=TUNING.TOTAL_DAY_TIME*3 and "flood" or "dry"
     local ruined=SpawnPrefab("ege_ruined_field")
@@ -143,8 +150,8 @@ function EgeFields:Tick(dt)
     if not manager then return end
     local dead = {}
     for key,tile in pairs(self.tiles) do
-        if map:GetTile(tile.tx,tile.tz) ~= WORLD_TILES.FARMING_SOIL then
-            dead[#dead+1] = tile
+        if map:GetTile(tile.tx,tile.tz) ~= WORLD_TILES.FARMING_SOIL or self:IsRuined(tile.tx,tile.tz) then
+            self:Register(tile.tx,tile.tz)
         else
             local x,y,z = map:GetTileCenterPoint(tile.tx,tile.tz)
             local temp = GetTemperatureAtXZ(x,z)
@@ -152,7 +159,7 @@ function EgeFields:Tick(dt)
             if tile.frozen then
                 for _,plant in ipairs(map:GetEntitiesOnTileAtPoint(x,0,z)) do
                     if plant:HasTag("farm_plant") and plant.components.ege_crop then
-                        plant.components.ege_crop:Rot("农田积水结冰，作物已冻坏腐烂。")
+                        plant.components.ege_crop:Rot("rot_ice")
                     end
                 end
             end
@@ -217,8 +224,10 @@ function EgeFields:Tick(dt)
             local severe=cfg.salinity~=false and (tile.salt or 0)>=R.SALT_SEVERE
             tile.salt_time=severe and (tile.salt_time or 0)+dt*cfg.severity or math.max(0,(tile.salt_time or 0)-dt*2)
             self:UpdateSaltVisual(tile)
-            if tile.water >= 100 then
-                if not tile.frozen then tile.flood = tile.flood + dt * cfg.severity end
+            if tile.water <= 0 then tile.flood = 0
+            elseif tile.water >= 100 and not tile.frozen then tile.flood = tile.flood + dt * cfg.severity
+            elseif tile.water < 100 then tile.flood = math.max(0,tile.flood-dt*2) end
+            if tile.water > 0 then
                 if not self.fx[key] then
                     self.fx[key] = SpawnPrefab("ege_flood")
                     if self.fx[key] then self.fx[key].Transform:SetPosition(x,0,z) end
@@ -226,7 +235,6 @@ function EgeFields:Tick(dt)
                 if self.fx[key] and self.fx[key].SetFrozen then self.fx[key]:SetFrozen(tile.frozen) end
                 if self.fx[key] and self.fx[key].SetWaterDepth then self.fx[key]:SetWaterDepth(tile.water) end
             else
-                tile.flood = math.max(0,tile.flood-dt*2)
                 if self.fx[key] then self.fx[key]:Remove(); self.fx[key]=nil end
             end
             -- Salt and flood erosion share one rate; do not stack the penalties.
@@ -234,7 +242,10 @@ function EgeFields:Tick(dt)
                 local loss=-dt*0.025*cfg.severity
                 manager:AddTileNutrients(tile.tx,tile.tz,loss,loss,loss)
             end
-            if cfg.drought and self.inst.state.issummer and not manager:IsSoilMoistAtPoint(x,0,z) then
+            if tile.water>0 or manager:IsSoilMoistAtPoint(x,0,z) then
+                tile.dry_grace=0
+                tile.dry=0
+            elseif cfg.drought and self.inst.state.issummer then
                 local previous=tile.dry_grace or 0
                 tile.dry_grace=previous+dt
                 local grace=TUNING.TOTAL_DAY_TIME

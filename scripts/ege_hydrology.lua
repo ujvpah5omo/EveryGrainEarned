@@ -78,8 +78,17 @@ function M.Install(manager)
         end
         local result=refresh(self,dt,...)
         for _,r in ipairs(records) do
-            old(self,r.x,0,r.z,r.target-self:EGEGetSoilMoisture(r.x,r.z))
-            if TUNING.EGE.flooding then r.tile.water=math.min(300,r.tile.water+r.overflow) end
+            local target=r.target
+            if TUNING.EGE.flooding then
+                local water=math.min(300,r.tile.water+r.overflow)
+                if not r.tile.frozen and water>0 then
+                    local transfer=math.min(water,math.max(0,maxmoisture-target))
+                    target=target+transfer
+                    water=water-transfer
+                end
+                r.tile.water=water
+            end
+            old(self,r.x,0,r.z,target-self:EGEGetSoilMoisture(r.x,r.z))
             r.tile.fresh_supply=(r.tile.fresh_supply or 0)+r.rain
         end
         return result

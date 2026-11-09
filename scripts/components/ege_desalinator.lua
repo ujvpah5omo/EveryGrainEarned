@@ -18,6 +18,10 @@ function EgeDesalinator:RefreshVisual()
     local working=inst.spraytask~=nil and inst.components.machine and inst.components.machine:IsOn()
     local active=inst.spraytask and inst.components.machine and inst.components.machine:IsOn()
         and inst.ege_water_source=="sea" and (self:HasShard() or self.remaining>0)
+    if inst.components.watersource then
+        inst.components.watersource.available=not not (working and inst.ege_water_source
+            and (inst.ege_water_source~="sea" or active))
+    end
     if inst.AnimState.SetLightOverride then inst.AnimState:SetLightOverride(active and 0.3 or working and 0.1 or 0) end
     inst.AnimState:SetAddColour(0,0,0,0)
     if inst.AnimState.SetSymbolAddColour then

@@ -1,3 +1,4 @@
+local L = require("ege_strings")
 PrefabFiles = { "ege_equipment", "ege_flood", "ege_moonoil", "ege_sandbag", "ege_cloth", "ege_salt_fx", "ege_damage_fx", "ege_ruined_field" }
 Assets = {
     Asset("ATLAS","images/ege_magic_sprinkler.xml"),Asset("IMAGE","images/ege_magic_sprinkler.tex"),
@@ -29,27 +30,27 @@ for _, name in ipairs({"flooding", "drought", "disease", "temperature", "season_
 end
 G.TUNING.EGE = cfg
 local S = G.STRINGS
-S.ACTIONS.DEPLOY.EGE_SANDBAG="放置沙袋"
+S.ACTIONS.DEPLOY.EGE_SANDBAG=L("deploy_bag")
 local old_deploy_string=G.ACTIONS.DEPLOY.strfn
 G.ACTIONS.DEPLOY.strfn=function(act)
     if act.invobject and act.invobject.prefab=="ege_sandbag_item" then return "EGE_SANDBAG" end
     return old_deploy_string(act)
 end
-S.CHARACTERS.GENERIC.DESCRIBE_PLANTSTRESSOREGE_FLOOD = "农田积水了，需要排水。"
-S.CHARACTERS.GENERIC.DESCRIBE_PLANTSTRESSOREGE_TEMPERATURE = "气温过低，不适合这种作物。"
-S.CHARACTERS.GENERIC.DESCRIBE_PLANTSTRESSOREGE_SALT = "海水灌溉过多或农田积盐严重，需要淡水洗盐。"
-local names = { EGE_SPRINKLER="自动洒水器", EGE_MAGIC_SPRINKLER="海水淡化洒水器", EGE_SANDBAG="排水沙袋", EGE_MOONOIL="农药", EGE_FLOOD="农田积水" }
-local desc = { EGE_SPRINKLER="水源附近建造，海水灌溉会积盐。", EGE_MAGIC_SPRINKLER="装入蓝宝石或启迪碎片，淡化海水。", EGE_SANDBAG="吸排附近农田的积水。", EGE_MOONOIL="装备后投掷，释放蓝色治疗雾。病株需先排水。" }
+S.CHARACTERS.GENERIC.DESCRIBE_PLANTSTRESSOREGE_FLOOD = L("stress_flood")
+S.CHARACTERS.GENERIC.DESCRIBE_PLANTSTRESSOREGE_TEMPERATURE = L("stress_cold")
+S.CHARACTERS.GENERIC.DESCRIBE_PLANTSTRESSOREGE_SALT = L("stress_salt")
+local names = { EGE_SPRINKLER=L("sprinkler"), EGE_MAGIC_SPRINKLER=L("magic_sprinkler"), EGE_SANDBAG=L("sandbag"), EGE_MOONOIL=L("pesticide"), EGE_FLOOD=L("flood") }
+local desc = { EGE_SPRINKLER=L("sprinkler_desc"), EGE_MAGIC_SPRINKLER=L("magic_desc"), EGE_SANDBAG=L("sandbag_desc"), EGE_MOONOIL=L("pesticide_desc") }
 for key, value in pairs(names) do
     S.NAMES[key] = value
-    S.CHARACTERS.GENERIC.DESCRIBE[key] = desc[key] or "水太多了，该排水了。"
+    S.CHARACTERS.GENERIC.DESCRIBE[key] = desc[key] or L("flood_desc")
     if desc[key] then S.RECIPE_DESC[key] = desc[key] end
 end
 S.NAMES.EGE_SANDBAG_ITEM=names.EGE_SANDBAG
-S.CHARACTERS.GENERIC.DESCRIBE.EGE_SANDBAG_ITEM="放在农田空位上，排除附近积水。"
-S.NAMES.EGE_CLOTH="布"
-S.RECIPE_DESC.EGE_CLOTH="把蜘蛛丝织成结实的布。"
-S.CHARACTERS.GENERIC.DESCRIBE.EGE_CLOTH="可以用来缝制沙袋。"
+S.CHARACTERS.GENERIC.DESCRIBE.EGE_SANDBAG_ITEM=L("bag_item_desc")
+S.NAMES.EGE_CLOTH=L("cloth")
+S.RECIPE_DESC.EGE_CLOTH=L("cloth_recipe")
+S.CHARACTERS.GENERIC.DESCRIBE.EGE_CLOTH=L("cloth_desc")
 AddRecipe2("ege_cloth", {G.Ingredient("silk",3)}, G.TECH.SCIENCE_ONE,
     {image="ege_cloth.tex",atlas="images/ege_inventory.xml"}, {"REFINE"})
 AddRecipe2("ege_sprinkler", {G.Ingredient("gears",2),G.Ingredient("goldnugget",4),G.Ingredient("boards",2)}, G.TECH.SCIENCE_TWO,
@@ -101,7 +102,7 @@ AddPrefabPostInit("snowpile",function(inst)
     end)
 end)
 
-G.STRINGS.NAMES.EGE_RUINED_FIELD="毁坏的田地"
+G.STRINGS.NAMES.EGE_RUINED_FIELD=L("ruined_field")
 local function IsRuinedPoint(pt)
     local fields=G.TheWorld.components.ege_fields
     local tile=fields and fields:AtPoint(pt.x,pt.z)

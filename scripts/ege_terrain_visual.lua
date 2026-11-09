@@ -8,40 +8,41 @@ function M.TintCracks(inst,cause,alpha)
     local colour=crack_colours[cause] or {1,1,1}
     inst.AnimState:SetMultColour(colour[1],colour[2],colour[3],alpha or 1)
 end
+local spot_colours = {
+    salt={1,1,1,0.85},
+    flood={0.34,0.39,0.48,0.12},
+    dry={0.78,0.62,0.36,0.34},
+}
 function M.Assets()
-    return {Asset("ANIM","anim/ege_terrain_flood.zip"),Asset("ANIM","anim/ege_terrain_dry.zip"),Asset("ANIM","anim/ege_terrain_salt.zip")}
+    return {Asset("ANIM","anim/farm_soil_moisture.zip")}
 end
-function M.Fit(parent,ground)
-    -- Standalone local effect: do not inherit the crack entity's 0.65/1/0.65 scale.
-    -- Match the user-approved ice sheet's animation, geometry and uniform scale.
-    ground.Transform:SetScale(1.2,1.2,1.2)
+function M.Fit(parent,ground,scale)
+    ground.Transform:SetScale(scale,scale,scale)
     if parent.Transform and parent.Transform.GetWorldPosition then
         ground.Transform:SetPosition(parent.Transform:GetWorldPosition())
     end
 end
-function M.Apply(parent,ground,cause,alpha)
+function M.Apply(parent,ground,cause,alpha,scale)
     if type(cause)=="number" then cause=causes[cause] end
-    if cause~="salt" and cause~="flood" and cause~="dry" then alpha=0;cause="dry" end
-    local build="ege_terrain_"..cause
-    if ground.ege_build~=build then
-        ground.ege_build=build
-        ground.AnimState:SetBuild(build)
-    end
-    ground.AnimState:SetMultColour(1,1,1,alpha or 1)
-    M.Fit(parent,ground)
+    local colour=spot_colours[cause] or spot_colours.dry
+    ground.AnimState:SetMultColour(colour[1],colour[2],colour[3],cause and (alpha or 1) or 0)
+    ground.AnimState:SetAddColour(colour[1]*colour[4],colour[2]*colour[4],colour[3]*colour[4],0)
+    M.Fit(parent,ground,scale or 1)
 end
 function M.Create(parent,cause)
     local ground=CreateEntity()
-    ground.entity:AddTransform();ground.entity:AddAnimState()
-    ground.AnimState:SetBank("ege_terrain")
-    ground.AnimState:SetBuild("ege_terrain_dry")
-    ground.AnimState:PlayAnimation("idle",true)
+    ground.entity:AddTransform()
+    ground.entity:AddAnimState()
+    ground.AnimState:SetBank("farm_soil_moisture")
+    ground.AnimState:SetBuild("farm_soil_moisture")
+    ground.AnimState:SetPercent("anim",1)
     ground.AnimState:SetOrientation(ANIM_ORIENTATION.OnGround)
-    -- Ground material below cracks (WORLD_BACKGROUND), both below characters (WORLD).
-    ground.AnimState:SetLayer(LAYER_BACKGROUND);ground.AnimState:SetSortOrder(6)
-    ground.AnimState:SetFinalOffset(0)
-    ground:AddTag("FX");ground:AddTag("NOCLICK");ground:AddTag("NOBLOCK");ground.persists=false
-    M.Apply(parent,ground,cause,1)
+    ground.AnimState:SetLayer(LAYER_BACKGROUND)
+    ground.AnimState:SetSortOrder(6)
+    ground:AddTag("FX")
+    ground:AddTag("NOCLICK")
+    ground.persists=false
+    M.Apply(parent,ground,cause,0)
     return ground
 end
 return M
