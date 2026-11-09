@@ -1,4 +1,4 @@
-local chinese = type(locale) == "string" and locale:sub(1, 2) == "zh"
+local chinese = locale == "zh" or locale == "zht" or locale == "zhr"
 local function text(zh, en)
     return chinese and zh or en
 end
@@ -10,7 +10,7 @@ description = text(
     "Manage flooding, drought, cold, salinity and crop disease. Irrigate with sprinklers, drain with sandbags and treat crops with pesticide. Prolonged flooding, drought or salt exposure can ruin farm plots."
 ) .. "\n\n" .. text("Steam 创意工坊", "Steam Workshop") .. "\n" .. workshop_url
 author = "Codex"
-version = "0.6.0"
+version = "0.6.1"
 api_version = 10
 dst_compatible = true
 dont_starve_compatible = false
